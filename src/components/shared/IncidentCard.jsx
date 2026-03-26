@@ -43,54 +43,64 @@ export default function IncidentCard({ incident, selected, onClick }) {
     </div>
   );
 }
-
 const styles = {
   card: {
-    padding: "15px 20px",
-    borderBottom: "1px solid var(--border)",
-    borderLeft: "2px solid transparent",
+    padding: "16px 18px",
+    marginBottom: 10,
+    borderRadius: "var(--r-md)",
+    background: "rgba(24,28,35,0.7)",
+    backdropFilter: "blur(10px)",
+    border: "1px solid var(--border)",
     cursor: "pointer",
-    transition: "background .15s",
+    transition: "all .2s ease",
     animation: "slideInL .3s ease both",
   },
+
   cardSelected: {
-    background: "var(--dark3)",
-    borderLeftColor: "var(--red)",
-    paddingLeft: 18,
+    background: "rgba(24,28,35,0.95)",
+    border: "1px solid var(--border2)",
+    boxShadow: "0 6px 20px rgba(0,0,0,0.6)",
+    transform: "translateY(-2px)",
   },
+
   topRow: {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 7,
+    marginBottom: 8,
   },
+
   time: {
     fontSize: 11,
     color: "var(--muted)",
   },
+
   category: {
     fontSize: 11,
     fontWeight: 600,
     color: "var(--muted)",
     letterSpacing: "0.06em",
     textTransform: "uppercase",
-    marginBottom: 4,
+    marginBottom: 6,
   },
+
   desc: {
     fontSize: 13,
-    opacity: 0.8,
+    color: "var(--text)",
+    opacity: 0.85,
     lineHeight: 1.5,
-    marginBottom: 8,
+    marginBottom: 10,
     display: "-webkit-box",
     WebkitLineClamp: 2,
     WebkitBoxOrient: "vertical",
     overflow: "hidden",
   },
+
   loc: {
     display: "flex",
     alignItems: "center",
-    gap: 5,
+    gap: 6,
     fontSize: 11,
-    color: "var(--muted)",
+    color: "var(--muted2)",
   },
 };

@@ -210,32 +210,37 @@ function IncidentPopup({ incident, onClose, user, onReport }) {
   );
 }
 
-/* ── ALL STYLES ── */
+// /* ── ALL STYLES ── */
 const styles = {
   wrap: {
     width: "100%",
     height: "100%",
     overflow: "hidden",
     position: "relative",
-    background: "var(--dark2)",
+    background: "var(--dark)",
   },
+
+  /* GRID */
   grid: {
     position: "absolute",
     inset: 0,
     backgroundImage:
-      "linear-gradient(rgba(255,255,255,0.022) 1px,transparent 1px)," +
-      "linear-gradient(90deg,rgba(255,255,255,0.022) 1px,transparent 1px)",
+      "linear-gradient(rgba(255,255,255,0.03) 1px,transparent 1px)," +
+      "linear-gradient(90deg,rgba(255,255,255,0.03) 1px,transparent 1px)",
     backgroundSize: "60px 60px",
-    pointerEvents: "none",
     zIndex: 0,
   },
+
+  /* BLOBS (glow) */
   blob: {
     position: "absolute",
     borderRadius: "50%",
-    filter: "blur(55px)",
-    pointerEvents: "none",
+    filter: "blur(80px)",
+    opacity: 0.6,
     zIndex: 1,
   },
+
+  /* ROADS */
   roads: {
     position: "absolute",
     inset: 0,
@@ -244,6 +249,8 @@ const styles = {
     pointerEvents: "none",
     zIndex: 2,
   },
+
+  /* PIN */
   pin: {
     position: "absolute",
     zIndex: 10,
@@ -251,59 +258,70 @@ const styles = {
     background: "none",
     border: "none",
     padding: 0,
-    transition: "transform .2s",
+    transition: "all .2s ease",
   },
+
   pinBody: {
-    width: 30,
-    height: 30,
+    width: 32,
+    height: 32,
     borderRadius: "50% 50% 50% 0",
     transform: "rotate(-45deg)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    border: "2px solid rgba(255,255,255,0.18)",
+    border: "2px solid rgba(255,255,255,0.2)",
+    boxShadow: "0 4px 20px rgba(0,0,0,0.6)",
   },
+
   pinIcon: {
     transform: "rotate(45deg)",
-    fontSize: 12,
+    fontSize: 13,
   },
+
+  /* SIDEBAR BUTTON */
   sidebarToggle: {
     position: "absolute",
     top: 14,
     left: 14,
     zIndex: 100,
-    width: 36,
-    height: 36,
+    width: 38,
+    height: 38,
     borderRadius: "var(--r-sm)",
     border: "1px solid var(--border)",
-    background: "rgba(13,15,20,0.88)",
-    backdropFilter: "blur(8px)",
+    background: "rgba(20,22,30,0.8)",
+    backdropFilter: "blur(10px)",
     color: "var(--muted)",
     fontSize: 16,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     cursor: "pointer",
-    boxShadow: "0 4px 24px rgba(0,0,0,0.4)",
+    boxShadow: "0 6px 24px rgba(0,0,0,0.5)",
   },
+
+  /* STATS */
   statsBar: {
     position: "absolute",
     top: 16,
     zIndex: 20,
     display: "flex",
-    gap: 8,
-    transition: "left .28s cubic-bezier(.4,0,.2,1)",
+    gap: 10,
+    transition: "left .25s ease",
   },
+
   statPill: {
-    background: "rgba(13,15,20,0.88)",
+    background: "rgba(20,22,30,0.8)",
     backdropFilter: "blur(10px)",
     border: "1px solid var(--border)",
     borderRadius: "var(--r-sm)",
-    padding: "7px 13px",
+    padding: "7px 14px",
     display: "flex",
     alignItems: "center",
     gap: 6,
+    boxShadow: "0 6px 20px rgba(0,0,0,0.5)",
   },
+
+  /* ZOOM */
   zoomCtrl: {
     position: "absolute",
     top: 16,
@@ -313,31 +331,36 @@ const styles = {
     flexDirection: "column",
     gap: 6,
   },
+
   zoomBtn: {
-    width: 34,
-    height: 34,
-    background: "rgba(13,15,20,0.88)",
+    width: 36,
+    height: 36,
+    background: "rgba(20,22,30,0.8)",
     backdropFilter: "blur(10px)",
     border: "1px solid var(--border)",
     borderRadius: "var(--r-sm)",
-    color: "var(--muted)",
+    color: "var(--text)",
     fontSize: 18,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     cursor: "pointer",
   },
+
+  /* LEGEND */
   legend: {
     position: "absolute",
     bottom: 20,
     left: 16,
     zIndex: 20,
-    background: "rgba(13,15,20,0.9)",
-    backdropFilter: "blur(10px)",
+    background: "rgba(20,22,30,0.85)",
+    backdropFilter: "blur(12px)",
     border: "1px solid var(--border)",
     borderRadius: "var(--r-md)",
-    padding: "13px 16px",
+    padding: "14px 16px",
+    boxShadow: "0 10px 30px rgba(0,0,0,0.6)",
   },
+
   legendTitle: {
     fontFamily: "var(--font-display)",
     fontSize: 10,
@@ -345,35 +368,40 @@ const styles = {
     letterSpacing: "0.1em",
     textTransform: "uppercase",
     color: "var(--muted)",
-    marginBottom: 9,
+    marginBottom: 10,
   },
+
   legendRow: {
     display: "flex",
     alignItems: "center",
     gap: 7,
-    fontSize: 11,
+    fontSize: 12,
     color: "var(--muted)",
     marginBottom: 6,
   },
+
   legendDot: {
     width: 8,
     height: 8,
     borderRadius: "50%",
-    flexShrink: 0,
   },
+
+  /* POPUP */
   popup: {
     position: "absolute",
     bottom: 24,
     right: 20,
     zIndex: 30,
     width: 300,
-    background: "var(--dark3)",
+    background: "rgba(24,28,35,0.9)",
+    backdropFilter: "blur(14px)",
     border: "1px solid var(--border2)",
     borderRadius: "var(--r-lg)",
-    padding: "18px 18px 16px",
-    boxShadow: "0 8px 40px rgba(0,0,0,0.6)",
-    animation: "slideUp .25s ease both",
+    padding: "18px",
+    boxShadow: "0 12px 40px rgba(0,0,0,0.7)",
+    animation: "fadeUp .3s ease",
   },
+
   popupClose: {
     position: "absolute",
     top: 12,
@@ -384,45 +412,50 @@ const styles = {
     fontSize: 14,
     cursor: "pointer",
   },
+
   popupHeader: {
     display: "flex",
-    alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 8,
   },
+
   popupCat: {
     fontSize: 11,
     fontWeight: 600,
     color: "var(--muted)",
-    letterSpacing: "0.06em",
-    textTransform: "uppercase",
     marginBottom: 6,
+    textTransform: "uppercase",
+    letterSpacing: "0.05em",
   },
+
   popupDesc: {
     fontSize: 13,
-    lineHeight: 1.55,
-    opacity: 0.85,
+    color: "var(--text)",
+    opacity: 0.9,
+    lineHeight: 1.5,
     marginBottom: 10,
   },
+
   popupLoc: {
-    display: "flex",
-    alignItems: "center",
-    gap: 5,
     fontSize: 11,
     color: "var(--muted)",
+    display: "flex",
+    gap: 5,
   },
+
   popupDivider: {
     height: 1,
     background: "var(--border)",
     margin: "12px 0",
   },
+
   popupCta: {
     width: "100%",
     padding: "9px",
     borderRadius: "var(--r-sm)",
-    border: "1px dashed rgba(232,64,42,0.4)",
+    border: "1px dashed rgba(255,77,77,0.5)",
     background: "var(--red-dim)",
-    color: "#f87262",
+    color: "var(--red)",
     fontSize: 12,
     fontWeight: 600,
     cursor: "pointer",
