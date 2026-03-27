@@ -1,23 +1,17 @@
+import { useEffect, useRef, useState } from "react";
 import { useApp } from "../../context/AppContext";
 import { useAuth } from "../../context/AuthContext";
-import { INCIDENTS } from "../../data/mockData";
+import { useIncidents } from "../../hooks/useIncidents";
 import SeverityBadge from "../shared/SeverityBadge";
+import L from "leaflet";
 
-/* pin color per severity */
-const PIN_COLOR = {
-  high:   "var(--red)",
-  medium: "var(--amber)",
-  low:    "var(--green)",
-};
-
-/* rough % positions on our fake map canvas */
-const PIN_POSITIONS = {
-  "1": { left: "38%", top: "44%" },
-  "2": { left: "55%", top: "30%" },
-  "3": { left: "28%", top: "62%" },
-  "4": { left: "66%", top: "22%" },
-  "5": { left: "47%", top: "72%" },
-};
+/* fix leaflet's default marker icon broken by webpack */
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+  iconUrl:       "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+  shadowUrl:     "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+});
 
 const CATEGORY_ICONS = {
   Harassment:      "⚠️",
@@ -25,105 +19,166 @@ const CATEGORY_ICONS = {
   Theft:           "🎒",
   "Safe Zone":     "✅",
   "Unsafe Road":   "🚧",
+  Suspicious:      "👁️",
+  Accident:        "🚗",
+  Other:           "📌",
+};
+
+const SEV_COLOR = {
+  high:   "#E8402A",
+  medium: "#F5A623",
+  low:    "#27AE60",
+};
+
+/* build a custom colored SVG pin for each severity */
+const makeIcon = (severity, selected = false) => {
+  const color = SEV_COLOR[severity] || SEV_COLOR.medium;
+  const size  = selected ? 38 : 30;
+  const svg   = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size * 1.3}" viewBox="0 0 30 39">
+      <filter id="shadow">
+        <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,0.5)"/>
+      </filter>
+      <path filter="url(#shadow)"
+        d="M15 0C6.716 0 0 6.716 0 15c0 10.314 15 24 15 24S30 25.314 30 15C30 6.716 23.284 0 15 0z"
+        fill="${color}"
+        stroke="rgba(255,255,255,0.3)"
+        stroke-width="1.5"
+      />
+      <circle cx="15" cy="15" r="6" fill="rgba(255,255,255,0.35)"/>
+    </svg>`;
+
+  return L.divIcon({
+    html:      `<div>${svg}</div>`,
+    className: "",
+    iconSize:     [size, size * 1.3],
+    iconAnchor:   [size / 2, size * 1.3],
+    popupAnchor:  [0, -(size * 1.3)],
+  });
 };
 
 export default function MapDashboard() {
   const { selectedIncident, setSelectedIncident, sidebarOpen, toggleSidebar } = useApp();
-  const { user, openAuthModal } = useAuth();
+  const { user, openAuthModal }  = useAuth();
+  const { incidents, loading }   = useIncidents();
 
-  /* counts for stats bar */
-  const highCount   = INCIDENTS.filter((i) => i.severity === "high").length;
-  const medCount    = INCIDENTS.filter((i) => i.severity === "medium").length;
-  const safeCount   = INCIDENTS.filter((i) => i.severity === "low").length;
+  const mapRef       = useRef(null); // DOM node
+  const leafletRef   = useRef(null); // Leaflet map instance
+  const markersRef   = useRef({});   // { incidentId: L.marker }
+
+  /* ── initialise map once ── */
+  useEffect(() => {
+    if (leafletRef.current) return; // already initialised
+
+    leafletRef.current = L.map(mapRef.current, {
+      center:          [22.7196, 75.8577], // Indore, India
+      zoom:            13,
+      zoomControl:     false,
+      attributionControl: false,
+    });
+
+    /* dark tile layer from CartoDB */
+    L.tileLayer(
+      "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+      {
+        attribution: '© <a href="https://carto.com/">CARTO</a>',
+        subdomains:  "abcd",
+        maxZoom:     19,
+      }
+    ).addTo(leafletRef.current);
+
+    /* subtle attribution */
+    L.control.attribution({ position: "bottomright", prefix: false })
+      .addTo(leafletRef.current);
+
+    /* custom zoom control top-right */
+    L.control.zoom({ position: "topright" }).addTo(leafletRef.current);
+
+    return () => {
+      leafletRef.current?.remove();
+      leafletRef.current = null;
+    };
+  }, []);
+
+  /* ── add/update markers when incidents load ── */
+  useEffect(() => {
+    if (!leafletRef.current || loading) return;
+
+    /* remove old markers */
+    Object.values(markersRef.current).forEach((m) => m.remove());
+    markersRef.current = {};
+
+    incidents.forEach((inc) => {
+      const { lat, lng } = inc.location;
+      if (!lat || !lng) return;
+
+      const marker = L.marker([lat, lng], {
+        icon: makeIcon(inc.severity, false),
+      }).addTo(leafletRef.current);
+
+      marker.on("click", () => {
+        setSelectedIncident((prev) =>
+          prev?.id === inc.id ? null : inc
+        );
+      });
+
+      markersRef.current[inc.id || inc._id] = marker;
+    });
+  }, [incidents, loading]);
+
+  /* ── update marker size when selection changes ── */
+  useEffect(() => {
+    if (!leafletRef.current) return;
+
+    Object.entries(markersRef.current).forEach(([id, marker]) => {
+      const inc      = incidents.find((i) => (i.id || i._id) === id);
+      const selected = selectedIncident?.id === id || selectedIncident?._id === id;
+      if (inc) marker.setIcon(makeIcon(inc.severity, selected));
+    });
+
+    /* pan to selected incident */
+    if (selectedIncident?.location) {
+      const { lat, lng } = selectedIncident.location;
+      leafletRef.current.panTo([lat, lng], { animate: true, duration: 0.5 });
+    }
+  }, [selectedIncident]);
+
+  /* ── invalidate size when sidebar toggles ── */
+  useEffect(() => {
+    setTimeout(() => leafletRef.current?.invalidateSize(), 320);
+  }, [sidebarOpen]);
+
+  /* ── counts ── */
+  const highCount = incidents.filter((i) => i.severity === "high").length;
+  const medCount  = incidents.filter((i) => i.severity === "medium").length;
+  const safeCount = incidents.filter((i) => i.severity === "low").length;
 
   return (
     <div style={styles.wrap}>
-      {/* ── GRID BACKGROUND ── */}
-      <div style={styles.grid} />
 
-      {/* ── BLOBS ── */}
-      <div style={{ ...styles.blob, width: 320, height: 320, top: "15%", left: "30%", background: "rgba(232,64,42,0.18)" }} />
-      <div style={{ ...styles.blob, width: 260, height: 260, top: "50%", left: "55%", background: "rgba(245,166,35,0.14)" }} />
-      <div style={{ ...styles.blob, width: 200, height: 200, top: "60%", left: "20%", background: "rgba(39,174,96,0.12)" }} />
+      {/* ── LEAFLET MAP ── */}
+      <div ref={mapRef} style={styles.map} />
 
-      {/* ── FAKE ROAD LINES ── */}
-      <svg style={styles.roads} viewBox="0 0 1000 700" preserveAspectRatio="none">
-        <g stroke="rgba(255,255,255,0.045)" strokeWidth="1.5" fill="none">
-          <line x1="0" y1="350" x2="1000" y2="350" />
-          <line x1="500" y1="0"   x2="500" y2="700" />
-          <line x1="0" y1="180" x2="1000" y2="260" />
-          <line x1="0" y1="520" x2="1000" y2="460" />
-          <line x1="200" y1="0" x2="320" y2="700" />
-          <line x1="720" y1="0" x2="650" y2="700" />
-          <path d="M0,420 Q250,380 500,350 T1000,300" />
-          <path d="M0,200 Q300,320 600,280 T1000,180" />
-        </g>
-      </svg>
-
-      {/* ── MAP PINS ── */}
-      {INCIDENTS.map((inc) => {
-        const pos = PIN_POSITIONS[inc.id];
-        const isSelected = selectedIncident?.id === inc.id;
-        return (
-          <button
-            key={inc.id}
-            onClick={() => setSelectedIncident(isSelected ? null : inc)}
-            style={{
-              ...styles.pin,
-              left: pos.left,
-              top:  pos.top,
-              transform: isSelected
-                ? "translate(-50%, -100%) scale(1.22)"
-                : "translate(-50%, -100%)",
-              zIndex: isSelected ? 20 : 10,
-            }}
-          >
-            {/* pin teardrop body */}
-            <div
-              style={{
-                ...styles.pinBody,
-                background: PIN_COLOR[inc.severity],
-                boxShadow: isSelected
-                  ? `0 0 0 4px ${PIN_COLOR[inc.severity]}44, 0 4px 18px rgba(0,0,0,0.6)`
-                  : "0 3px 14px rgba(0,0,0,0.5)",
-              }}
-            >
-              <span style={styles.pinIcon}>
-                {CATEGORY_ICONS[inc.category] ?? "📍"}
-              </span>
-            </div>
-          </button>
-        );
-      })}
-
-      {/* ── SIDEBAR TOGGLE (only when sidebar is closed) ── */}
+      {/* ── SIDEBAR TOGGLE ── */}
       {!sidebarOpen && (
-        <button style={styles.sidebarToggle} onClick={toggleSidebar}>
-          ☰
-        </button>
+        <button style={styles.sidebarToggle} onClick={toggleSidebar}>☰</button>
       )}
 
-      {/* ── STATS BAR (top-left, shifts right if sidebar is open) ── */}
+      {/* ── STATS BAR ── */}
       <div style={{ ...styles.statsBar, left: sidebarOpen ? 16 : 64 }}>
-        <StatPill value={INCIDENTS.length} label="Total"  color="var(--muted2)" />
-        <StatPill value={highCount}         label="High"   color="#f87262" />
-        <StatPill value={medCount}          label="Medium" color="#f5c963" />
-        <StatPill value={safeCount}         label="Safe"   color="#5dd992" />
-      </div>
-
-      {/* ── ZOOM CONTROLS (decorative for now) ── */}
-      <div style={styles.zoomCtrl}>
-        <button style={styles.zoomBtn}>+</button>
-        <button style={styles.zoomBtn}>−</button>
+        <StatPill value={loading ? "…" : incidents.length} label="Total"  color="var(--muted2)" />
+        <StatPill value={loading ? "…" : highCount}        label="High"   color="#f87262" />
+        <StatPill value={loading ? "…" : medCount}         label="Medium" color="#f5c963" />
+        <StatPill value={loading ? "…" : safeCount}        label="Safe"   color="#5dd992" />
       </div>
 
       {/* ── LEGEND ── */}
       <div style={styles.legend}>
         <div style={styles.legendTitle}>Severity</div>
         {[
-          { color: "var(--red)",   label: "High risk" },
-          { color: "var(--amber)", label: "Medium risk" },
-          { color: "var(--green)", label: "Safe / Low" },
+          { color: "#E8402A", label: "High risk"   },
+          { color: "#F5A623", label: "Medium risk" },
+          { color: "#27AE60", label: "Safe / Low"  },
         ].map(({ color, label }) => (
           <div key={label} style={styles.legendRow}>
             <span style={{ ...styles.legendDot, background: color }} />
@@ -137,10 +192,8 @@ export default function MapDashboard() {
         <IncidentPopup
           incident={selectedIncident}
           onClose={() => setSelectedIncident(null)}
-          onReport={() => {
-            if (!user) openAuthModal("login");
-          }}
           user={user}
+          openAuthModal={openAuthModal}
         />
       )}
     </div>
@@ -160,27 +213,22 @@ function StatPill({ value, label, color }) {
 }
 
 /* ── INCIDENT POPUP ── */
-function IncidentPopup({ incident, onClose, user, onReport }) {
+function IncidentPopup({ incident, onClose, user, openAuthModal }) {
   return (
     <div style={styles.popup}>
-      {/* close */}
       <button onClick={onClose} style={styles.popupClose}>✕</button>
 
-      {/* header */}
       <div style={styles.popupHeader}>
         <SeverityBadge severity={incident.severity} />
         <span style={{ fontSize: 11, color: "var(--muted)" }}>{incident.time}</span>
       </div>
 
-      {/* category */}
       <div style={styles.popupCat}>
         {CATEGORY_ICONS[incident.category] ?? "📍"} {incident.category}
       </div>
 
-      {/* description */}
       <p style={styles.popupDesc}>{incident.description}</p>
 
-      {/* location */}
       <div style={styles.popupLoc}>
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
           stroke="currentColor" strokeWidth="2">
@@ -192,7 +240,6 @@ function IncidentPopup({ incident, onClose, user, onReport }) {
 
       <div style={styles.popupDivider} />
 
-      {/* reporter */}
       <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 12 }}>
         Reported by{" "}
         <span style={{ color: "var(--text)", fontWeight: 600 }}>
@@ -200,9 +247,11 @@ function IncidentPopup({ incident, onClose, user, onReport }) {
         </span>
       </div>
 
-      {/* CTA */}
       {!user && (
-        <button onClick={onReport} style={styles.popupCta}>
+        <button
+          onClick={() => openAuthModal("login")}
+          style={styles.popupCta}
+        >
           + Report a similar incident
         </button>
       )}
@@ -210,254 +259,107 @@ function IncidentPopup({ incident, onClose, user, onReport }) {
   );
 }
 
-// /* ── ALL STYLES ── */
+/* ── STYLES ── */
 const styles = {
   wrap: {
-    width: "100%",
-    height: "100%",
-    overflow: "hidden",
-    position: "relative",
-    background: "var(--dark)",
+    width: "100%", height: "100%",
+    overflow: "hidden", position: "relative",
+    background: "#0D0F14",
   },
-
-  /* GRID */
-  grid: {
-    position: "absolute",
-    inset: 0,
-    backgroundImage:
-      "linear-gradient(rgba(255,255,255,0.03) 1px,transparent 1px)," +
-      "linear-gradient(90deg,rgba(255,255,255,0.03) 1px,transparent 1px)",
-    backgroundSize: "60px 60px",
+  map: {
+    width: "100%", height: "100%",
     zIndex: 0,
   },
-
-  /* BLOBS (glow) */
-  blob: {
-    position: "absolute",
-    borderRadius: "50%",
-    filter: "blur(80px)",
-    opacity: 0.6,
-    zIndex: 1,
-  },
-
-  /* ROADS */
-  roads: {
-    position: "absolute",
-    inset: 0,
-    width: "100%",
-    height: "100%",
-    pointerEvents: "none",
-    zIndex: 2,
-  },
-
-  /* PIN */
-  pin: {
-    position: "absolute",
-    zIndex: 10,
-    cursor: "pointer",
-    background: "none",
-    border: "none",
-    padding: 0,
-    transition: "all .2s ease",
-  },
-
-  pinBody: {
-    width: 32,
-    height: 32,
-    borderRadius: "50% 50% 50% 0",
-    transform: "rotate(-45deg)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    border: "2px solid rgba(255,255,255,0.2)",
-    boxShadow: "0 4px 20px rgba(0,0,0,0.6)",
-  },
-
-  pinIcon: {
-    transform: "rotate(45deg)",
-    fontSize: 13,
-  },
-
-  /* SIDEBAR BUTTON */
   sidebarToggle: {
-    position: "absolute",
-    top: 14,
-    left: 14,
-    zIndex: 100,
-    width: 38,
-    height: 38,
+    position: "absolute", top: 14, left: 14,
+    zIndex: 100, width: 36, height: 36,
     borderRadius: "var(--r-sm)",
     border: "1px solid var(--border)",
-    background: "rgba(20,22,30,0.8)",
-    backdropFilter: "blur(10px)",
-    color: "var(--muted)",
-    fontSize: 16,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    cursor: "pointer",
-    boxShadow: "0 6px 24px rgba(0,0,0,0.5)",
+    background: "rgba(13,15,20,0.88)",
+    backdropFilter: "blur(8px)",
+    color: "var(--muted)", fontSize: 16,
+    display: "flex", alignItems: "center",
+    justifyContent: "center", cursor: "pointer",
+    boxShadow: "0 4px 24px rgba(0,0,0,0.4)",
   },
-
-  /* STATS */
   statsBar: {
-    position: "absolute",
-    top: 16,
-    zIndex: 20,
-    display: "flex",
-    gap: 10,
-    transition: "left .25s ease",
+    position: "absolute", top: 16,
+    zIndex: 20, display: "flex", gap: 8,
+    transition: "left .28s cubic-bezier(.4,0,.2,1)",
   },
-
   statPill: {
-    background: "rgba(20,22,30,0.8)",
+    background: "rgba(13,15,20,0.88)",
     backdropFilter: "blur(10px)",
     border: "1px solid var(--border)",
     borderRadius: "var(--r-sm)",
-    padding: "7px 14px",
-    display: "flex",
-    alignItems: "center",
-    gap: 6,
-    boxShadow: "0 6px 20px rgba(0,0,0,0.5)",
+    padding: "7px 13px",
+    display: "flex", alignItems: "center", gap: 6,
   },
-
-  /* ZOOM */
-  zoomCtrl: {
-    position: "absolute",
-    top: 16,
-    right: 16,
-    zIndex: 20,
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
-  },
-
-  zoomBtn: {
-    width: 36,
-    height: 36,
-    background: "rgba(20,22,30,0.8)",
-    backdropFilter: "blur(10px)",
-    border: "1px solid var(--border)",
-    borderRadius: "var(--r-sm)",
-    color: "var(--text)",
-    fontSize: 18,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    cursor: "pointer",
-  },
-
-  /* LEGEND */
   legend: {
-    position: "absolute",
-    bottom: 20,
-    left: 16,
+    position: "absolute", bottom: 28, left: 16,
     zIndex: 20,
-    background: "rgba(20,22,30,0.85)",
-    backdropFilter: "blur(12px)",
+    background: "rgba(13,15,20,0.9)",
+    backdropFilter: "blur(10px)",
     border: "1px solid var(--border)",
     borderRadius: "var(--r-md)",
-    padding: "14px 16px",
-    boxShadow: "0 10px 30px rgba(0,0,0,0.6)",
+    padding: "13px 16px",
   },
-
   legendTitle: {
     fontFamily: "var(--font-display)",
-    fontSize: 10,
-    fontWeight: 700,
+    fontSize: 10, fontWeight: 700,
     letterSpacing: "0.1em",
     textTransform: "uppercase",
-    color: "var(--muted)",
-    marginBottom: 10,
+    color: "var(--muted)", marginBottom: 9,
   },
-
   legendRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: 7,
-    fontSize: 12,
-    color: "var(--muted)",
-    marginBottom: 6,
+    display: "flex", alignItems: "center",
+    gap: 7, fontSize: 11, color: "var(--muted)", marginBottom: 6,
   },
-
   legendDot: {
-    width: 8,
-    height: 8,
-    borderRadius: "50%",
+    width: 8, height: 8,
+    borderRadius: "50%", flexShrink: 0,
   },
-
-  /* POPUP */
   popup: {
-    position: "absolute",
-    bottom: 24,
-    right: 20,
-    zIndex: 30,
-    width: 300,
-    background: "rgba(24,28,35,0.9)",
-    backdropFilter: "blur(14px)",
+    position: "absolute", bottom: 24, right: 20,
+    zIndex: 30, width: 300,
+    background: "var(--dark3)",
     border: "1px solid var(--border2)",
     borderRadius: "var(--r-lg)",
-    padding: "18px",
-    boxShadow: "0 12px 40px rgba(0,0,0,0.7)",
-    animation: "fadeUp .3s ease",
+    padding: "18px 18px 16px",
+    boxShadow: "0 8px 40px rgba(0,0,0,0.6)",
+    animation: "slideUp .25s ease both",
   },
-
   popupClose: {
-    position: "absolute",
-    top: 12,
-    right: 12,
-    background: "none",
-    border: "none",
-    color: "var(--muted)",
-    fontSize: 14,
-    cursor: "pointer",
+    position: "absolute", top: 12, right: 12,
+    background: "none", border: "none",
+    color: "var(--muted)", fontSize: 14, cursor: "pointer",
   },
-
   popupHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    marginBottom: 8,
+    display: "flex", alignItems: "center",
+    justifyContent: "space-between", marginBottom: 8,
   },
-
   popupCat: {
-    fontSize: 11,
-    fontWeight: 600,
-    color: "var(--muted)",
-    marginBottom: 6,
-    textTransform: "uppercase",
-    letterSpacing: "0.05em",
+    fontSize: 11, fontWeight: 600,
+    color: "var(--muted)", letterSpacing: "0.06em",
+    textTransform: "uppercase", marginBottom: 6,
   },
-
   popupDesc: {
-    fontSize: 13,
-    color: "var(--text)",
-    opacity: 0.9,
-    lineHeight: 1.5,
-    marginBottom: 10,
+    fontSize: 13, lineHeight: 1.55,
+    opacity: 0.85, marginBottom: 10,
   },
-
   popupLoc: {
-    fontSize: 11,
-    color: "var(--muted)",
-    display: "flex",
-    gap: 5,
+    display: "flex", alignItems: "center",
+    gap: 5, fontSize: 11, color: "var(--muted)",
   },
-
   popupDivider: {
-    height: 1,
-    background: "var(--border)",
-    margin: "12px 0",
+    height: 1, background: "var(--border)", margin: "12px 0",
   },
-
   popupCta: {
-    width: "100%",
-    padding: "9px",
+    width: "100%", padding: 9,
     borderRadius: "var(--r-sm)",
-    border: "1px dashed rgba(255,77,77,0.5)",
+    border: "1px dashed rgba(232,64,42,0.4)",
     background: "var(--red-dim)",
-    color: "var(--red)",
-    fontSize: 12,
-    fontWeight: 600,
-    cursor: "pointer",
+    color: "#f87262", fontSize: 12,
+    fontWeight: 600, cursor: "pointer",
   },
 };

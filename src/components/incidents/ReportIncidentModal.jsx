@@ -2,6 +2,12 @@ import { useState } from "react";
 import { useApp } from "../../context/AppContext";
 import { useAuth } from "../../context/AuthContext";
 import { Overlay, Spinner } from "../auth/LoginModal";
+import { createIncident } from "../../services/incident.service";
+
+//mapppp
+const [locLabel, setLocLabel] = useState("");
+const [coords,   setCoords]   = useState({ lat: 22.7196, lng: 75.8577 }); // default Indore
+//mapppp
 
 const CATEGORIES = [
   { id: "Harassment",      icon: "⚠️",  label: "Harassment" },
@@ -64,13 +70,53 @@ export default function ReportIncidentModal() {
     setStep((s) => s + 1);
   };
 
-  const submit = () => {
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      setSubmitted(true);
-    }, 1200);
-  };
+
+
+// const submit = async () => {
+//   setLoading(true);
+//   try {
+//     await createIncident({
+//       category,
+//       severity,
+//       description,
+//       location: {
+//         label: locLabel,
+//         lat:   22.7196, // default Indore coords for now
+//         lng:   75.8577,
+//       },
+//       anonymous,
+//     });
+//     setSubmitted(true);
+//   } catch (err) {
+//     setErr(err.response?.data?.message || "Failed to submit. Please try again.");
+//   } finally {
+//     setLoading(false);
+//   }
+// };
+
+const submit = async () => {
+  setLoading(true);
+  try {
+    await createIncident({
+      category,
+      severity,
+      description,
+      location: {
+        label: locLabel,
+        lat:   coords.lat,
+        lng:   coords.lng,
+      },
+      anonymous,
+    });
+    setSubmitted(true);
+  } catch (err) {
+    setErr(err.response?.data?.message || "Failed to submit. Try again.");
+  } finally {
+    setLoading(false);
+  }
+};
+
+
 
   /* ── SUCCESS SCREEN ── */
   if (submitted) {
@@ -191,7 +237,9 @@ export default function ReportIncidentModal() {
             />
 
             {/* fake map picker */}
-            <div style={styles.sectionLabel}>Pin on map</div>
+            {/* <div style={styles.sectionLabel}>Pin on map</div> */}
+            <MiniMapPicker coords={coords} onChange={setCoords} />
+
             <div style={styles.mapPicker}>
               {/* grid */}
               <div style={styles.mapGrid} />
@@ -620,3 +668,75 @@ const styles = {
     fontFamily: "var(--font-display)", cursor: "pointer",
   },
 };
+
+import { useEffect, useRef } from "react";
+import L from "leaflet";
+
+function MiniMapPicker({ coords, onChange }) {
+  const miniMapRef  = useRef(null);
+  const leafletRef  = useRef(null);
+  const markerRef   = useRef(null);
+
+  useEffect(() => {
+    if (leafletRef.current) return;
+
+    leafletRef.current = L.map(miniMapRef.current, {
+      center:      [coords.lat, coords.lng],
+      zoom:        13,
+      zoomControl: true,
+      attributionControl: false,
+    });
+
+    L.tileLayer(
+      "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+      { subdomains: "abcd", maxZoom: 19 }
+    ).addTo(leafletRef.current);
+
+    /* place initial marker */
+    markerRef.current = L.marker([coords.lat, coords.lng], {
+      draggable: true,
+    }).addTo(leafletRef.current);
+
+    /* update coords on marker drag */
+    markerRef.current.on("dragend", (e) => {
+      const { lat, lng } = e.target.getLatLng();
+      onChange({ lat: +lat.toFixed(6), lng: +lng.toFixed(6) });
+    });
+
+    /* update coords on map click */
+    leafletRef.current.on("click", (e) => {
+      const { lat, lng } = e.latlng;
+      markerRef.current.setLatLng([lat, lng]);
+      onChange({ lat: +lat.toFixed(6), lng: +lng.toFixed(6) });
+    });
+
+    return () => {
+      leafletRef.current?.remove();
+      leafletRef.current = null;
+    };
+  }, []);
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div
+        ref={miniMapRef}
+        style={{
+          width: "100%", height: 180,
+          borderRadius: "var(--r-md)",
+          border: "1px solid var(--border)",
+          overflow: "hidden",
+          zIndex: 0,
+        }}
+      />
+      <div style={{
+        fontSize: 11, color: "var(--muted)",
+        marginTop: 6, textAlign: "center",
+      }}>
+        📍 Click map or drag pin to set location ·{" "}
+        <span style={{ fontFamily: "monospace" }}>
+          {coords.lat.toFixed(4)}, {coords.lng.toFixed(4)}
+        </span>
+      </div>
+    </div>
+  );
+}

@@ -1,3 +1,5 @@
+
+
 import { useState } from "react";
 import { useApp } from "../../context/AppContext";
 import { useAuth } from "../../context/AuthContext";
@@ -39,14 +41,26 @@ export default function SignupModal() {
     setStep(2);
   };
 
-  const submitStep2 = () => {
-    setLoading(true);
-    setTimeout(() => {
-      signup({ username, email, bio, avatar: avatarPreview });
-      setLoading(false);
-      closeAuthModal();
-    }, 900);
-  };
+//   const submitStep2 = () => {
+//     setLoading(true);
+//     setTimeout(() => {
+//       signup({ username, email, bio, avatar: avatarPreview });
+//       setLoading(false);
+//       closeAuthModal();
+//     }, 900);
+//   };
+const submitStep2 = async () => {
+  setLoading(true);
+  try {
+    await signup({ username, email, password, bio, avatar: avatarPreview });
+    closeAuthModal();
+  } catch (err) {
+    console.log("FULL ERROR:", err.response?.data); // 👈 add this
+    setErr2(err.response?.data?.message || "Signup failed. Please try again.");
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleAvatar = (e) => {
     const file = e.target.files?.[0];
@@ -216,46 +230,101 @@ export default function SignupModal() {
   );
 }
 
-/* ── step indicator ── */
+// /* ── step indicator ── */
+
 function Steps({ current }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
-      {[1, 2].map((n, i) => (
-        <>
-          <div key={n} style={{
-            display: "flex", alignItems: "center", gap: 6,
-          }}>
-            <div style={{
-              width: 22, height: 22,
-              borderRadius: "50%",
-              background: current >= n ? "var(--red)" : "var(--dark5)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 11, fontWeight: 700,
-              color: current >= n ? "#fff" : "var(--muted)",
-              transition: "background .3s",
-            }}>
-              {current > n ? "✓" : n}
-            </div>
-            <span style={{
-              fontSize: 12,
-              color: current >= n ? "var(--text)" : "var(--muted)",
-              fontWeight: current >= n ? 600 : 400,
-            }}>
-              {n === 1 ? "Account" : "Profile"}
-            </span>
-          </div>
-          {i === 0 && (
-            <div style={{
-              flex: 1, height: 1,
-              background: current > 1 ? "var(--red)" : "var(--border)",
-              transition: "background .3s",
-            }} />
-          )}
-        </>
-      ))}
+      {/* Step 1 */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <div style={{
+          width: 22, height: 22, borderRadius: "50%",
+          background: current >= 1 ? "var(--red)" : "var(--dark5)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 11, fontWeight: 700,
+          color: "#fff", transition: "background .3s",
+        }}>
+          {current > 1 ? "✓" : "1"}
+        </div>
+        <span style={{
+          fontSize: 12, fontWeight: current === 1 ? 600 : 400,
+          color: current >= 1 ? "var(--text)" : "var(--muted)",
+        }}>
+          Account
+        </span>
+      </div>
+
+      {/* Connector line */}
+      <div style={{
+        flex: 1, height: 1,
+        background: current > 1 ? "var(--red)" : "var(--border)",
+        transition: "background .3s",
+      }} />
+
+      {/* Step 2 */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <div style={{
+          width: 22, height: 22, borderRadius: "50%",
+          background: current >= 2 ? "var(--red)" : "var(--dark5)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 11, fontWeight: 700,
+          color: current >= 2 ? "#fff" : "var(--muted)",
+          transition: "background .3s",
+        }}>
+          2
+        </div>
+        <span style={{
+          fontSize: 12, fontWeight: current === 2 ? 600 : 400,
+          color: current >= 2 ? "var(--text)" : "var(--muted)",
+        }}>
+          Profile
+        </span>
+      </div>
     </div>
   );
 }
+
+
+// function Steps({ current }) {
+//   return (
+//     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
+//       {[1, 2].map((n, i) => (
+//         <>
+//           <div key={n} style={{
+//             display: "flex", alignItems: "center", gap: 6,
+//           }}>
+//             <div style={{
+//               width: 22, height: 22,
+//               borderRadius: "50%",
+//               background: current >= n ? "var(--red)" : "var(--dark5)",
+//               display: "flex", alignItems: "center", justifyContent: "center",
+//               fontSize: 11, fontWeight: 700,
+//               color: current >= n ? "#fff" : "var(--muted)",
+//               transition: "background .3s",
+//             }}>
+//               {current > n ? "✓" : n}
+//             </div>
+//             <span style={{
+//               fontSize: 12,
+//               color: current >= n ? "var(--text)" : "var(--muted)",
+//               fontWeight: current >= n ? 600 : 400,
+//             }}>
+//               {n === 1 ? "Account" : "Profile"}
+//             </span>
+//           </div>
+//           {i === 0 && (
+//             <div style={{
+//               flex: 1, height: 1,
+//               background: current > 1 ? "var(--red)" : "var(--border)",
+//               transition: "background .3s",
+//             }} />
+//           )}
+//         </>
+//       ))}
+//     </div>
+//   );
+// }
+
 
 const styles = {
   modal: {
