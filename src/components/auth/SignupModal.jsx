@@ -41,6 +41,8 @@ export default function SignupModal() {
     setStep(2);
   };
 
+  const [ setErr2] = useState("");
+
 //   const submitStep2 = () => {
 //     setLoading(true);
 //     setTimeout(() => {
