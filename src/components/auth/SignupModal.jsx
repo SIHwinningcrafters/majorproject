@@ -22,7 +22,7 @@ export default function SignupModal() {
 
   /* step 2 fields */
   const [bio, setBio]   = useState("");
-  const [err2, setErr2] = useState("");
+  const [err2] = useState("");
 
   const submitStep1 = () => {
     setErr1("");
